@@ -99,6 +99,15 @@ class RepackOpts {
     }
 }
 
+/* this only seems to work if the ghosts come from a source that is already a valid replay for use in play against a replay.
+ghosts from other replays don't seem to get saved at all (presumably some validation from the replay saver thing).
+this makes sense since those ghosts are recorded locally instead of the high-res version that the server records.
+additionally, the c++ can save the local players high res version online (how we get pb ghosts) but the server also uploads, I think.
+so the ghosts that we download from nadeo servers are the high quality ones.
+
+additional experiments: removing player cam and the other cam from the replay doesn't invalidate the ghost for repacking. even altering the
+amount of the ghost that is shown doesn't seem to matter.
+*/
 void RepackReplayForPlayersGhostsCoro(ref@ _opts) {
     auto map = GetApp().RootMap;
     auto opts = cast<RepackOpts>(_opts);
@@ -116,16 +125,25 @@ void RepackReplayForPlayersGhostsCoro(ref@ _opts) {
     string playerName = GetPlayerName(GetApp());
     for (uint i = 0; i < rf.ghosts.Length; i++) {
         auto ghost = rf.ghosts[i];
-        if (ghost.Nickname != playerName) continue;
+        // if (ghost.Nickname != playerName) continue;
         playerGhosts.InsertLast(ghost);
     }
+    print("repacking " + playerGhosts.Length + " ghosts.");
     yield();
-    auto dfm = GetDataFileMgr(GetApp());
+    auto dfm = GetDataFileMgrSync(GetApp());
+    print("got dfm");
     for (uint i = 0; i < playerGhosts.Length; i++) {
         auto g = playerGhosts[i];
-        if (g.Result is null) continue;
-        if (g.Result.Time <= 0 || g.Result.Time > 86400000) continue;
-        auto newReplayFn = opts.shortFileName.Replace(".Replay.gbx", "-" + Text::Format("%02d", i) + "-" + Text::Format("%dms", g.Result.Time) + ".Replay.gbx");
+        if (g.Result is null) {
+            print('result is null');
+            continue;
+        }
+        if (g.Result.Time <= 0 || g.Result.Time > 86400000) {
+            print('g.Result.Time is ' + g.Result.Time);
+            continue;
+        }
+        print('saving ghost');
+        auto newReplayFn = opts.shortFileName.ToLower().Replace(".replay.gbx", "-" + g.Nickname + "-" + Text::Format("%02d", i) + "-" + Text::Format("%dms", g.Result.Time) + ".Replay.gbx");
         dfm.Replay_Save(newReplayFn, map, g);
         print("Saved repacked replay: " + newReplayFn);
         sleep(100);
