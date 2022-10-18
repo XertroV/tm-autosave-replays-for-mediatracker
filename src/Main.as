@@ -4,8 +4,9 @@ ReplaysRoot@ replaysRoot;
 void Main() {
     CheckRequiredPermissions();
     @replaysRoot = ReplaysRoot();
-    startnew(TestRipGhosts);
+    // startnew(TestRipGhosts);
     startnew(CreateGhostsDir);
+    startnew(AutoSaveReplaysCoro);
 }
 
 const string GhostDir = IO::FromUserGameFolder("Replays/Ghosts");
@@ -53,6 +54,86 @@ void CheckRequiredPermissions() {
         while(true) { sleep(10000); } // do nothing forever
     }
 }
+
+CGamePlaygroundUIConfig::EUISequence lastUiStatus = CGamePlaygroundUIConfig::EUISequence::None;
+
+uint lastAutosave = 0;
+void AutoSaveReplaysCoro() {
+    if (lastAutosave + 5000 > Time::Now) return; // don't autosave within 5s of autosaving
+    lastAutosave = Time::Now;
+    while (true) {
+        yield();
+        if (!Setting_AutoSaveReplays) {
+            sleep(1000);
+            continue;
+        }
+        CGamePlaygroundUIConfig::EUISequence currUiSeq = CGamePlaygroundUIConfig::EUISequence::None;
+        auto pcs = GetPlaygroundClientScriptAPISync(GetApp());
+        if (pcs !is null)
+            currUiSeq = pcs.UI.UISequence;
+        bool sequenceOkay = currUiSeq == CGamePlaygroundUIConfig::EUISequence::UIInteraction || currUiSeq == CGamePlaygroundUIConfig::EUISequence::Podium;
+        if (sequenceOkay && currUiSeq != lastUiStatus && pcs !is null) {
+            auto replayFileName = "AutosavedReplays/" + Time::Stamp + "-" + GetApp().RootMap.MapName + " " + pcs.LocalUser.Name + ".Replay.gbx";
+            warn("Saving replay: " + replayFileName);
+            /* SavePrevReplay is not useful in time attack -- it will save nothing.
+               It might save the prior round in KO matches.
+               // pcs.SavePrevReplay(replayFileName + "-prev" + ".Replay.gbx");
+            */
+            // in Time Attack it saves all ghosts up to now that the player has observed
+            pcs.SaveReplay(replayFileName);
+            startnew(RepackReplayForPlayersGhostsCoro, RepackOpts(replayFileName));
+        }
+        if (currUiSeq != lastUiStatus) {
+            warn("updating ui seq. last: " + tostring(lastUiStatus) + ", new: " + tostring(currUiSeq));
+            lastUiStatus = currUiSeq;
+        }
+    }
+}
+
+class RepackOpts {
+    string fileName;
+    string shortFileName;
+    RepackOpts(const string &in shortFn) {
+        fileName = IO::FromUserGameFolder("Replays/" + shortFn).Replace("\\", "/");
+        shortFileName = shortFn;
+    }
+}
+
+void RepackReplayForPlayersGhostsCoro(ref@ _opts) {
+    auto map = GetApp().RootMap;
+    auto opts = cast<RepackOpts>(_opts);
+    if (opts is null) {
+        warn("RepackReplayForPlayersGhostsCoro got null opts");
+        return;
+    }
+    auto rf = ReplayFile(opts.fileName);
+    if (!rf.exists) {
+        warn("RepackReplayForPlayersGhostsCoro replay (" + opts.fileName + ") does not exist");
+        return;
+    }
+    rf.LoadGhostsSync();
+    CGameGhostScript@[] playerGhosts = {};
+    string playerName = GetPlayerName(GetApp());
+    for (uint i = 0; i < rf.ghosts.Length; i++) {
+        auto ghost = rf.ghosts[i];
+        if (ghost.Nickname != playerName) continue;
+        playerGhosts.InsertLast(ghost);
+    }
+    yield();
+    auto dfm = GetDataFileMgr(GetApp());
+    for (uint i = 0; i < playerGhosts.Length; i++) {
+        auto g = playerGhosts[i];
+        if (g.Result is null) continue;
+        if (g.Result.Time <= 0 || g.Result.Time > 86400000) continue;
+        auto newReplayFn = opts.shortFileName.Replace(".Replay.gbx", "-" + Text::Format("%02d", i) + "-" + Text::Format("%dms", g.Result.Time) + ".Replay.gbx");
+        dfm.Replay_Save(newReplayFn, map, g);
+        print("Saved repacked replay: " + newReplayFn);
+        sleep(100);
+    }
+}
+
+
+
 
 // dictionary toggleCache;
 // void ResetToggleCache() {

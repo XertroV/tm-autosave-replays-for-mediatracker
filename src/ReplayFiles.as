@@ -24,23 +24,35 @@ class ReplayDirectory {
     string folderName;
     private bool _exists;
     private string[] contents;
+    bool hasLocalFiles;
+    bool hasFiles;
 
     ReplayDirectory(const string &in dirPath) {
-        _exists = IO::FolderExists(dirPath);
-        path = dirPath;
-        if (path.EndsWith("/")) path.SubStr(0, path.Length - 1);
+        path = dirPath.Replace("\\", "/");
+        if (!path.EndsWith("/")) path += "/";
+        _exists = IO::FolderExists(path);
+        if (!_exists) return;
         contents = IO::IndexFolder(path, false);
         yield();
-        auto parts = dirPath.Split("/");
-        folderName = parts[parts.Length - 1];
+        auto parts = path.Split("/");
+        folderName = parts[parts.Length - 2];
         for (uint i = 0; i < contents.Length; i++) {
             auto childPath = contents[i];
             if (IO::FileExists(childPath) && IsReplayOrGhostFile(childPath)) {
                 files.InsertLast(ReplayFile(childPath));
+                hasLocalFiles = true;
+                hasFiles = true;
             } else if (IO::FolderExists(childPath)) {
-                subdirs.InsertLast(ReplayDirectory(childPath));
+                auto tmp = ReplayDirectory(childPath);
+                if (!tmp.exists) continue;
+                subdirs.InsertLast(tmp);
+                hasFiles = hasFiles || tmp.hasFiles;
             }
         }
+    }
+
+    bool HasNoFiles(bool recursive) {
+        return !(recursive ? hasFiles : hasLocalFiles);
     }
 
     string get_displayName() {
@@ -54,13 +66,52 @@ class ReplayDirectory {
 
 class ReplayFile {
     string path;
-    private bool exists;
+    private bool _exists;
     string fileName;
+    bool isReplay;
+    bool isGhost;
+
+    bool hasLoadedGhosts = false;
+    bool loadComplete = false;
+    MwFastBuffer<CGameGhostScript@> ghosts = MwFastBuffer<CGameGhostScript@>();
+
     ReplayFile(const string &in _path) {
-        path = _path;
-        exists = IO::FileExists(_path);
-        auto parts = _path.Split("/");
+        path = _path.Replace("\\", "/");
+        _exists = IO::FileExists(path);
+        auto parts = path.Split("/");
         fileName = parts[parts.Length - 1];
+        isReplay = fileName.ToLower().EndsWith(".replay.gbx");
+        isGhost = fileName.ToLower().EndsWith(".ghost.gbx");
+    }
+
+    void LoadGhostsAsync() {
+        hasLoadedGhosts = true;
+        startnew(CoroutineFunc(this.LoadGhostsSync));
+    }
+
+    void LoadGhostsSync() {
+        if (!exists) return;
+        auto DataFileMgr = GetDataFileMgr(GetApp());  // does this work better for review?
+        auto resp = DataFileMgr.Replay_Load(this.path);
+        while (resp.IsProcessing) yield();
+        if (resp.HasFailed) {
+            warn("Loading ghosts from " + this.path + " failed: " + resp.ErrorDescription);
+        } else {
+            this.ghosts = resp.Ghosts;
+            this.loadComplete = true;
+        }
+    }
+
+    string get_displayName() {
+        return path.Replace(TmGameFolder, "");
+    }
+
+    string get_shortPath() {
+        return path.Replace(TmGameFolder + "Replays/", "");
+    }
+
+    bool get_exists() {
+        return _exists;
     }
 }
 

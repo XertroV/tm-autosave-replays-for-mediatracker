@@ -18,7 +18,6 @@ void RenderMenu() {
 void DrawMainWindow() {
     if (UI::Begin("Ghost Extract 'n' Pack", g_windowVisible)) {
         DrawReplayDirTree(replaysRoot.root);
-        // DrawReplayTree("rtroot");
         /*
           - list replays
           - list ghosts
@@ -38,6 +37,7 @@ void DrawMainWindow() {
 }
 
 void DrawReplayDirTree(ReplayDirectory@ dir) {
+    if (dir.HasNoFiles(true)) return;
     UI::AlignTextToFramePadding();
     // UI::Checkbox("##selected-" + id, true);
     // UI::SameLine();
@@ -57,18 +57,57 @@ void DrawReplayDirTree(ReplayDirectory@ dir) {
 }
 
 void DrawReplayFileInTree(ReplayFile@ file) {
+    auto id = "##" + file.path;
     UI::AlignTextToFramePadding();
-    UI::Text(file.fileName);
+    auto icon = file.isReplay ? "\\$f88" + Icons::VideoCamera : "\\$bbb" + Icons::SnapchatGhost;
+    UI::Text(icon + "\\$z " + file.fileName);
+    UI::SameLine();
+    if (file.isReplay) {
+        if (!file.hasLoadedGhosts) {
+            if (UI::Button("Load Ghosts" + id)) {
+                file.LoadGhostsAsync();
+            }
+        } else if (!file.loadComplete) {
+            UI::Text("loading...");
+        } else {
+            UI::Text("" + file.ghosts.Length + " Ghosts");
+            UI::SameLine();
+            if (UI::Button("Load Ghosts")) {
+                startnew(LoadGhosts, RepackOpts(file.shortPath));
+            }
+            UI::SameLine();
+            if (UI::Button("Repack")) {
+                print("repacking: " + file.shortPath);
+                startnew(RepackReplayForPlayersGhostsCoro, RepackOpts(file.shortPath));
+            }
+        }
+    } else if (file.isGhost) {
+        UI::Text("");
+    }
 }
 
-void DrawReplayTree(const string &in id) {
-    UI::AlignTextToFramePadding();
-    UI::Checkbox("##selected-" + id, true);
-    UI::SameLine();
-    bool treeOpen = UI::TreeNode("test##" + id);
-    if (treeOpen) {
-        DrawReplayTree(id + "1");
-        DrawReplayTree(id + "2");
-        UI::TreePop();
+void LoadGhosts(ref@ _opts) {
+    auto map = GetApp().RootMap;
+    auto ps = cast<CSmArenaRulesMode>(GetApp().PlaygroundScript);
+    if (ps is null) return;
+    auto opts = cast<RepackOpts>(_opts);
+    if (opts is null) {
+        warn("RepackReplayForPlayersGhostsCoro got null opts");
+        return;
+    }
+    auto rf = ReplayFile(opts.fileName);
+    if (!rf.exists) {
+        warn("RepackReplayForPlayersGhostsCoro replay (" + opts.fileName + ") does not exist");
+        return;
+    }
+    rf.LoadGhostsSync();
+    CGameGhostScript@[] playerGhosts = {};
+    string playerName = GetPlayerName(GetApp());
+    for (uint i = 0; i < rf.ghosts.Length; i++) {
+        auto ghost = rf.ghosts[i];
+        if (ghost.Nickname != playerName) continue;
+        playerGhosts.InsertLast(ghost);
+        ps.Ghost_Add(ghost, true);
+        print("added ghost: " + ghost.Result.Time);
     }
 }
