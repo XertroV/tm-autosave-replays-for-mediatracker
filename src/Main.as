@@ -81,7 +81,7 @@ void AutoSaveReplaysCoro() {
             */
             // in Time Attack it saves all ghosts up to now that the player has observed
             pcs.SaveReplay(replayFileName);
-            startnew(RepackReplayForPlayersGhostsCoro, RepackOpts(replayFileName));
+            // startnew(RepackReplayForPlayersGhostsCoro, RepackOpts(replayFileName)); // does not work
         }
         if (currUiSeq != lastUiStatus) {
             warn("updating ui seq. last: " + tostring(lastUiStatus) + ", new: " + tostring(currUiSeq));
