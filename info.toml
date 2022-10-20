@@ -1,5 +1,5 @@
 [meta]
-name     = "Ghost Extract 'n' Pack"
+name     = "Autosave Replays for MediaTracker"
 author   = "XertroV"
 category = "Replay"
 version  = "0.1.0"
@@ -7,5 +7,3 @@ version  = "0.1.0"
 [script]
 #__DEFINES__
 dependencies = []
-module = "GhostPacker"
-exports = ["Export.as"]

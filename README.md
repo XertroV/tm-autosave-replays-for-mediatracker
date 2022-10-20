@@ -1,6 +1,17 @@
-# Ghost Extract 'n' Pack
+# Autosave Replays for MediaTracker
 
-**doesn't seem to really work. it can autosave the match replace, and you can see the ghosts in mediatracker (edit a replay), but when they are repacked the replays have no ghost. the time is recorded tho. (play > local > against a replay). opening the repacked replay in replay editor doesn't show a ghost, either.**
+**These replays cannot be used via *Play > Local > Against Replay*. They are *only* suitable for cases like *Create > Replay Editor*.**
+
+This plugin autosaves replays at suitable times, e.g., the end of a Time Attack session, or after each round in a KO match.
+
+The replays that are produced (saved in `Trackmania\Replays\AutosavedReplays`) can be used in the replay editor, and are probably able to be used as GPSs, etc. (IDK for sure, tho)
+
+Replays are saved when the `UISequence` is `Podium` or `UIInteraction`.
+In KO rounds, `UIInteraction` happens at the end of each round, and the 'save replay' will save just that last race.
+In Time Attack sessions, `Podium` happens at the end, and `UIInteraction` never happens.
+
+Note: there will be a noticeable lag spike at the end of long sessions with many players.
+Many megabytes of replay data will be saved.
 
 License: Public Domain
 
