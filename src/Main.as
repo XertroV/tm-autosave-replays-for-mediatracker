@@ -18,8 +18,8 @@ void CreateReplaysDir() {
 
 // check for permissions and
 void CheckRequiredPermissions() {
-    permissionsOkay = Permissions::ViewRecords() && Permissions::PlayRecords()
-        && Permissions::CreateLocalReplay() && Permissions::PlayAgainstReplay()
+    permissionsOkay = Permissions::CreateLocalReplay()
+        && Permissions::PlayAgainstReplay()
         && Permissions::OpenReplayEditor();
     if (!permissionsOkay) {
         NotifyWarn("You appear not to have club access.\n\nThis plugin won't work, sorry :(.");
@@ -31,7 +31,6 @@ CGamePlaygroundUIConfig::EUISequence lastUiStatus = CGamePlaygroundUIConfig::EUI
 
 uint lastAutosave = 0;
 void AutoSaveReplaysCoro() {
-    if (lastAutosave + 5000 > Time::Now) return; // don't autosave within 5s of autosaving
     lastAutosave = Time::Now;
     while (true) {
         yield();
@@ -39,6 +38,7 @@ void AutoSaveReplaysCoro() {
             sleep(1000);
             continue;
         }
+        if (lastAutosave + 5000 > Time::Now) continue; // don't autosave within 5s of autosaving
         CGamePlaygroundUIConfig::EUISequence currUiSeq = CGamePlaygroundUIConfig::EUISequence::None;
         auto pcs = GetPlaygroundClientScriptAPISync(GetApp());
         if (pcs !is null)
@@ -46,9 +46,9 @@ void AutoSaveReplaysCoro() {
         bool sequenceOkay = (currUiSeq == CGamePlaygroundUIConfig::EUISequence::UIInteraction || currUiSeq == CGamePlaygroundUIConfig::EUISequence::Podium)
                          && (lastUiStatus != CGamePlaygroundUIConfig::EUISequence::UIInteraction && lastUiStatus != CGamePlaygroundUIConfig::EUISequence::Podium);
         if (sequenceOkay && currUiSeq != lastUiStatus && pcs !is null) {
-            auto replayFileName = "AutosavedReplays/" + Time::Stamp
+            auto replayFileName = "AutosavedReplays/" + FormattedTimeNow
                 + "-" + StripFormatCodes(GetApp().RootMap.MapName)
-                + " " + pcs.LocalUser.Name + ".Replay.gbx";
+                + "--" + pcs.LocalUser.Name + ".Replay.gbx";
             Notify("Saving replay: " + replayFileName);
             yield(); // give time for notify to show
             /* SavePrevReplay is not useful in time attack -- it will save nothing.
@@ -57,12 +57,17 @@ void AutoSaveReplaysCoro() {
             */
             // in Time Attack it saves all ghosts up to now that the player has observed -- don't want to save early b/c it's just duplicate data
             pcs.SaveReplay(replayFileName);
+            lastAutosave = Time::Now;
         }
         if (currUiSeq != lastUiStatus) {
-            warn("updating ui seq. last: " + tostring(lastUiStatus) + ", new: " + tostring(currUiSeq));
+            trace("updating ui seq. last: " + tostring(lastUiStatus) + ", new: " + tostring(currUiSeq));
             lastUiStatus = currUiSeq;
         }
     }
+}
+
+const string get_FormattedTimeNow() {
+    return cast<CGameManiaPlanet>(GetApp()).ManiaPlanetScriptAPI.CurrentLocalDateText.Replace("/", "-").Replace(":", "-");
 }
 
 void Notify(const string &in msg) {
@@ -71,4 +76,5 @@ void Notify(const string &in msg) {
 
 void NotifyWarn(const string &in msg) {
     UI::ShowNotification(Meta::ExecutingPlugin().Name, msg, vec4(1, .5, .1, .5), 10000);
+    warn(msg);
 }
