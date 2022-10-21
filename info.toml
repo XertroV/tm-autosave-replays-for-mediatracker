@@ -2,7 +2,7 @@
 name     = "Autosave Replays for MediaTracker"
 author   = "XertroV"
 category = "Replay"
-version  = "0.1.0"
+version  = "0.1.1"
 
 [script]
 #__DEFINES__

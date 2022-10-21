@@ -1,14 +1,15 @@
 # Autosave Replays for MediaTracker
 
-**These replays cannot be used via *Play > Local > Against Replay*. They are *only* suitable for cases like *Create > Replay Editor*.**
+**These replays cannot be used via *Play > Local > Against Replay*. They are *only* suitable for cases like *Create > Replay Editor* or the map editor.**
 
 This plugin autosaves replays at suitable times, e.g., the end of a Time Attack session, or after each round in a KO match.
 Thus, it's possible to save a viewable replay of each round of a COTD KO match if you want, for example.
 
+They are the same replays that are produced via the 'Save Replay' button (but the prompt doesn't show).
+
 If you want decent quality replays of all players, have opponents on or be in spectator mode. Otherwise YMMV.
 
-The replays that are produced (saved in `Trackmania\Replays\AutosavedReplays`) can be used in the replay editor, and are probably able to be used as GPSs, etc. (IDK for sure, tho)
-They are the same replays that are produced via the 'Save Replay' button (but the prompt doesn't show).
+The replays that are produced (saved in `Trackmania\Replays\AutosavedReplays`) can be used in the replay editor, and can be used as GPSs, etc.
 
 You will experience a stutter when autosave is turned on.
 Expect a typically small stutter (50 - 250 ms) for few players and/or short sessions, and a bigger stutter (1000 - 2000 ms) for more players and particularly for longer sessions.
@@ -17,13 +18,15 @@ Early COTD KO rounds have a stutter ~100ms.
 
 Demo video loading saved replays in replay editor: [https://youtu.be/eSFR6YYNW3Q](https://youtu.be/eSFR6YYNW3Q)
 
-Replays are saved when the `UISequence` is `Podium` or `UIInteraction`.
+Replays are saved when the `UISequence` is `Podium`, `EndRound`, or `UIInteraction`.
 In KO rounds, `UIInteraction` happens at the end of each round, and the 'save replay' will save just that last race.
+In Ranked, `EndRound` happens at the end of each race.
 In Time Attack sessions, `Podium` happens at the end, and `UIInteraction` usually doesn't happens.
-(The plugin won't save an extra replay when one follows the other.)
+(The plugin won't save an extra replay when one follows the other, in any case.)
 
 Note: there will be a noticeable lag spike at the end of long sessions with many players.
 Many megabytes of replay data may be saved per session.
+If you run into problems, you might need to increase the plugin timeout in `Settings > Script Engine > Script execution timeout`.
 
 License: Public Domain
 

@@ -5,8 +5,24 @@ void Main() {
     startnew(CreateReplaysDir);
     startnew(AutoSaveReplaysCoro);
 #if DEV
-    Notify("test notify");
+    testui(CGamePlaygroundUIConfig::EUISequence::None);
+    testui(CGamePlaygroundUIConfig::EUISequence::Playing);
+    testui(CGamePlaygroundUIConfig::EUISequence::Intro);
+    testui(CGamePlaygroundUIConfig::EUISequence::Outro);
+    testui(CGamePlaygroundUIConfig::EUISequence::Podium);
+    testui(CGamePlaygroundUIConfig::EUISequence::CustomMTClip);
+    testui(CGamePlaygroundUIConfig::EUISequence::EndRound);
+    testui(CGamePlaygroundUIConfig::EUISequence::PlayersPresentation);
+    testui(CGamePlaygroundUIConfig::EUISequence::UIInteraction);
+    testui(CGamePlaygroundUIConfig::EUISequence::RollingBackgroundIntro);
+    testui(CGamePlaygroundUIConfig::EUISequence::CustomMTClip_WithUIInteraction);
+    testui(CGamePlaygroundUIConfig::EUISequence::Finish);
+    Notify("loaded");
 #endif
+}
+
+void testui(CGamePlaygroundUIConfig::EUISequence s) {
+    print('' + uint(s) + ': ' + tostring(s));
 }
 
 const string SaveReplaysDir = IO::FromUserGameFolder("Replays/AutosavedReplays");
@@ -29,9 +45,15 @@ void CheckRequiredPermissions() {
 
 CGamePlaygroundUIConfig::EUISequence lastUiStatus = CGamePlaygroundUIConfig::EUISequence::None;
 
+bool SaveOnSequence(CGamePlaygroundUIConfig::EUISequence s) {
+        return s == CGamePlaygroundUIConfig::EUISequence::UIInteraction
+            || s == CGamePlaygroundUIConfig::EUISequence::Podium
+            || s == CGamePlaygroundUIConfig::EUISequence::EndRound;
+}
+
 uint lastAutosave = 0;
 void AutoSaveReplaysCoro() {
-    lastAutosave = Time::Now;
+    CheckRequiredPermissions();
     while (true) {
         yield();
         if (!Setting_AutoSaveReplays) {
@@ -43,8 +65,7 @@ void AutoSaveReplaysCoro() {
         auto pcs = GetPlaygroundClientScriptAPISync(GetApp());
         if (pcs !is null)
             currUiSeq = pcs.UI.UISequence;
-        bool sequenceOkay = (currUiSeq == CGamePlaygroundUIConfig::EUISequence::UIInteraction || currUiSeq == CGamePlaygroundUIConfig::EUISequence::Podium)
-                         && (lastUiStatus != CGamePlaygroundUIConfig::EUISequence::UIInteraction && lastUiStatus != CGamePlaygroundUIConfig::EUISequence::Podium);
+        bool sequenceOkay = SaveOnSequence(currUiSeq) && !SaveOnSequence(lastUiStatus);
         if (sequenceOkay && currUiSeq != lastUiStatus && pcs !is null) {
             auto replayFileName = "AutosavedReplays/" + FormattedTimeNow
                 + "-" + StripFormatCodes(GetApp().RootMap.MapName)
@@ -56,8 +77,10 @@ void AutoSaveReplaysCoro() {
                // pcs.SavePrevReplay(replayFileName + "-prev" + ".Replay.gbx");
             */
             // in Time Attack it saves all ghosts up to now that the player has observed -- don't want to save early b/c it's just duplicate data
+            auto saveStart = Time::Now;
             pcs.SaveReplay(replayFileName);
             lastAutosave = Time::Now;
+            trace("Save duration: " + (lastAutosave - saveStart) + " ms.");
         }
         if (currUiSeq != lastUiStatus) {
             trace("updating ui seq. last: " + tostring(lastUiStatus) + ", new: " + tostring(currUiSeq));
@@ -72,6 +95,7 @@ const string get_FormattedTimeNow() {
 
 void Notify(const string &in msg) {
     UI::ShowNotification(Meta::ExecutingPlugin().Name, msg, vec4(.1, .5, .2, .3), 10000);
+    trace(msg);
 }
 
 void NotifyWarn(const string &in msg) {
