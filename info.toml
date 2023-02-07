@@ -6,4 +6,6 @@ version  = "0.1.1"
 
 [script]
 #__DEFINES__
-dependencies = []
+optional_dependencies = ["MLHook", "MLFeedRaceData"]
+# saving big MT replays can v expensive, so set a timeout that isn't too long but is pretty forgiving. (The replay will still be saved even if the plugin is killed)
+timeout = 5000

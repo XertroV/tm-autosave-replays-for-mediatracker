@@ -1,9 +1,17 @@
 bool permissionsOkay = false;
 
+#if DEPENDENCY_MLHOOK && DEPENDENCY_MLFEEDRACEDATA
+const bool UserHasMLFeed = true;
+#else
+const bool UserHasMLFeed = false;
+#endif
+
 void Main() {
+    if (UserHasMLFeed) Notify("MLFeed detected");
     CheckRequiredPermissions();
     startnew(CreateReplaysDir);
     startnew(AutoSaveReplaysCoro);
+    if (UserHasMLFeed) startnew(RespawnDetectionLoop);
 #if DEV
     testui(CGamePlaygroundUIConfig::EUISequence::None);
     testui(CGamePlaygroundUIConfig::EUISequence::Playing);
@@ -19,7 +27,18 @@ void Main() {
     testui(CGamePlaygroundUIConfig::EUISequence::Finish);
     Notify("loaded");
 #endif
+    sleep(100);
+    // MLHook::RegisterPlaygroundMLExecutionPointCallback(ML_Update);
 }
+
+// void ML_Update(ref@ nullRef) {
+//     // trace('exec');
+//     try {
+//         trace('is rules mode null: ' + tostring(cast<CSmArenaClient>(GetApp().CurrentPlayground).Arena.Rules.RulesMode is null));
+//     } catch {
+//         trace(getExceptionInfo());
+//     }
+// }
 
 void testui(CGamePlaygroundUIConfig::EUISequence s) {
     print('' + uint(s) + ': ' + tostring(s));
@@ -52,6 +71,7 @@ bool SaveOnSequence(CGamePlaygroundUIConfig::EUISequence s) {
 }
 
 uint lastAutosave = 0;
+CGamePlaygroundUIConfig::EUISequence currUiSeq = CGamePlaygroundUIConfig::EUISequence::None;
 void AutoSaveReplaysCoro() {
     CheckRequiredPermissions();
     while (true) {
@@ -61,12 +81,13 @@ void AutoSaveReplaysCoro() {
             continue;
         }
         if (lastAutosave + 5000 > Time::Now) continue; // don't autosave within 5s of autosaving
-        CGamePlaygroundUIConfig::EUISequence currUiSeq = CGamePlaygroundUIConfig::EUISequence::None;
+        currUiSeq = CGamePlaygroundUIConfig::EUISequence::None;
         auto pcs = GetPlaygroundClientScriptAPISync(GetApp());
         if (pcs !is null)
             currUiSeq = pcs.UI.UISequence;
-        bool sequenceOkay = SaveOnSequence(currUiSeq) && !SaveOnSequence(lastUiStatus);
-        if (sequenceOkay && currUiSeq != lastUiStatus && pcs !is null) {
+        bool sequenceOkay = SaveOnSequence(currUiSeq) && !SaveOnSequence(lastUiStatus) && currUiSeq != lastUiStatus;
+        bool saveDueToRestart = S_AutoSaveOnRestart && DidRestartLastFrame;
+        if ((sequenceOkay || saveDueToRestart) && pcs !is null) {
             auto replayFileName = "AutosavedReplays/" + FormattedTimeNow
                 + "-" + StripFormatCodes(GetApp().RootMap.MapName)
                 + "--" + pcs.LocalUser.Name + ".Replay.gbx";
@@ -75,10 +96,19 @@ void AutoSaveReplaysCoro() {
             /* SavePrevReplay is not useful in time attack -- it will save nothing.
                It might save the prior round in KO matches. not sure
                // pcs.SavePrevReplay(replayFileName + "-prev" + ".Replay.gbx");
+               AutosavedReplays/2023-02-05 14-03-a1-Winter 2023 - 24--XertroV.Replay.gbx
+               AutosavedReplays/2023-02-05 14-03-a2-Winter 2023 - 24--XertroV.Replay.gbx
+               AutosavedReplays/2023-02-05 14-03-a3-Winter 2023 - 24--XertroV.Replay.gbx
+               AutosavedReplays/2023-02-05 14-03-a4-Winter 2023 - 24--XertroV.Replay.gbx
+               AutosavedReplays/2023-02-05 14-03-a5-Winter 2023 - 24--XertroV.Replay.gbx
+
             */
             // in Time Attack it saves all ghosts up to now that the player has observed -- don't want to save early b/c it's just duplicate data
             auto saveStart = Time::Now;
             pcs.SaveReplay(replayFileName);
+            if (saveDueToRestart)
+                pcs.SavePrevReplay(replayFileName.Replace('.Replay.gbx', '-prev.Replay.gbx'));
+                // startnew(AutoSaveViaPrompt, array<string> = {replayFileName.Replace('.Replay.gbx', '-prev.Replay.gbx')});
             lastAutosave = Time::Now;
             trace("Save duration: " + (lastAutosave - saveStart) + " ms.");
         }
@@ -87,6 +117,13 @@ void AutoSaveReplaysCoro() {
             lastUiStatus = currUiSeq;
         }
     }
+}
+
+
+void AutoSaveViaPrompt(ref@ r) {
+    auto fileName = cast<string[]>(r)[0];
+    auto pgsapi = GetPlaygroundClientScriptAPISync(GetApp());
+
 }
 
 const string get_FormattedTimeNow() {
