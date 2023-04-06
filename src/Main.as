@@ -60,6 +60,10 @@ void AutoSaveReplaysCoro() {
             sleep(1000);
             continue;
         }
+        if (GetApp().PlaygroundScript !is null) { // don't check if we're in solo -- round detection broken + doesnt save anything useful anyway
+            sleep(100);
+            continue;
+        }
         if (lastAutosave + 5000 > Time::Now) continue; // don't autosave within 5s of autosaving
         CGamePlaygroundUIConfig::EUISequence currUiSeq = CGamePlaygroundUIConfig::EUISequence::None;
         auto pcs = GetPlaygroundClientScriptAPISync(GetApp());
