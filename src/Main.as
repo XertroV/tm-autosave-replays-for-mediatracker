@@ -17,7 +17,6 @@ void Main() {
     testui(CGamePlaygroundUIConfig::EUISequence::RollingBackgroundIntro);
     testui(CGamePlaygroundUIConfig::EUISequence::CustomMTClip_WithUIInteraction);
     testui(CGamePlaygroundUIConfig::EUISequence::Finish);
-    Notify("loaded");
 #endif
 }
 
